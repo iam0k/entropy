@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Энтропия в ящике — модель газа в изолированном сосуде</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF3F6; --panel:#FFFFFF; --grid:rgba(31,96,150,.07);
+  --ink:#1B2A44; --ink-soft:#55657A; --line:#CBD6DF;
+  --gasA:#D9772B; --gasB:#1F84B5; --accent:#C2366B;
+  --box:#FAFCFD; --wall:#1B2A44; --cellline:rgba(27,42,68,.22); --cellnum:rgba(27,42,68,.28);
+  --glow:0.10;
+  --serif:"PT Serif", Georgia, "Times New Roman", serif;
+  --sans:"PT Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1D2925; --panel:#24332E; --grid:rgba(225,238,228,.035);
+    --ink:#E8EEE5; --ink-soft:#A6B6AB; --line:#3A4F47;
+    --gasA:#F4B740; --gasB:#62CBEA; --accent:#F27BA3;
+    --box:#18231F; --wall:#E8EEE5; --cellline:rgba(232,238,229,.20); --cellnum:rgba(232,238,229,.20);
+    --glow:0.32; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1D2925; --panel:#24332E; --grid:rgba(225,238,228,.035);
+  --ink:#E8EEE5; --ink-soft:#A6B6AB; --line:#3A4F47;
+  --gasA:#F4B740; --gasB:#62CBEA; --accent:#F27BA3;
+  --box:#18231F; --wall:#E8EEE5; --cellline:rgba(232,238,229,.20); --cellnum:rgba(232,238,229,.20);
+  --glow:0.32; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background-color:var(--bg);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;
+  color:var(--ink); font-family:var(--sans); font-size:16px; line-height:1.45;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:1320px;margin:0 auto;padding:20px clamp(12px,3vw,32px) 32px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;margin-bottom:18px}
+h1{font-family:var(--serif);font-weight:700;font-size:clamp(1.8rem,4vw,3rem);line-height:1.05;margin:0;letter-spacing:-.01em}
+header p{margin:6px 0 0;color:var(--ink-soft);max-width:62ch}
+.tools{display:flex;gap:8px}
+
+/* Desktop: two columns. Phone: one column in the order stage, panel, plot, settings */
+.main{display:flex;gap:22px;align-items:flex-start}
+.col-left{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:16px}
+.col-right{flex:0 0 330px;display:flex;flex-direction:column;gap:16px}
+@media (max-width:960px){
+  .main{flex-direction:column;align-items:stretch;gap:14px}
+  .col-left,.col-right{display:contents}
+  .stage{order:1} .panel{order:2} .plot{order:3} .settings{order:4}
+  .main .stage{position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0;margin:-6px 0}
+}
+
+.stage{position:relative}
+#sim{display:block;width:100%;aspect-ratio:900/520;background:var(--box);border:3px solid var(--wall);border-radius:4px;touch-action:none;cursor:crosshair}
+.toast{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:max-content;max-width:min(560px,92%);
+  background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--accent);
+  padding:10px 14px;border-radius:4px;font-size:.95rem;box-shadow:0 6px 24px rgba(0,0,0,.18);display:none}
+.toast.show{display:block}
+figure{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px 8px}
+figcaption{font-size:.9rem;color:var(--ink-soft);margin-bottom:6px}
+#entPlot{display:block;width:100%;height:190px}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:18px}
+.formula{font-family:var(--serif);font-style:italic;font-size:2.1rem;line-height:1;margin:0 0 10px}
+.formula span{font-style:normal}
+.vals{margin:0 0 14px;font-size:.95rem;color:var(--ink-soft)}
+.vals b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+.big{display:flex;align-items:baseline;gap:10px}
+.big strong{white-space:nowrap;flex:none;font-family:var(--serif);font-size:3.4rem;line-height:1;font-variant-numeric:tabular-nums}
+.big small{color:var(--ink-soft);font-size:.9rem;line-height:1.25}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:10px 0 14px}
+.bar i{display:block;height:100%;width:0;background:var(--accent)}
+.facts{margin:0 0 18px;padding:0;list-style:none;font-size:.95rem}
+.facts li{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-top:1px solid var(--line)}
+.facts li span{color:var(--ink-soft)}
+.facts li b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.group + .group{margin-top:18px}
+.group h2{font-size:.95rem;font-weight:700;margin:0 0 8px}
+button{font:inherit;font-size:.95rem;color:var(--ink);background:transparent;border:1.5px solid var(--ink);border-radius:4px;padding:7px 12px;cursor:pointer;min-height:40px;touch-action:manipulation}
+button:hover{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--ink);color:var(--panel)}
+button.primary:hover{background:color-mix(in srgb,var(--ink) 85%,var(--accent))}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.actions .primary{grid-column:1/-1;padding:10px 12px;font-weight:700}
+.actions .wide{grid-column:1/-1}
+.seg{display:flex}
+.seg button{border-radius:0;margin-left:-1.5px;flex:1 1 0}
+.seg button:first-child{border-radius:4px 0 0 4px;margin-left:0}
+.seg button:last-child{border-radius:0 4px 4px 0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.tools button{padding:5px 10px;font-size:.9rem;min-height:36px}
+label.range{display:block;font-size:.95rem;margin-top:12px}
+label.range output{float:right;font-variant-numeric:tabular-nums;font-weight:700}
+input[type=range]{width:100%;accent-color:var(--accent);margin:8px 0 0;height:28px}
+.hint{font-size:.88rem;color:var(--ink-soft);margin:14px 0 0}
+kbd{font-family:var(--sans);font-size:.85em;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 5px}
+footer{margin-top:18px;font-size:.85rem;color:var(--ink-soft);max-width:80ch}
+
+@media (max-width:960px){
+  .card{padding:14px}
+  .formula{font-size:1.7rem;margin-bottom:6px}
+  .vals{margin-bottom:10px}
+  .big strong{font-size:2.6rem}
+  .facts{margin-bottom:14px}
+  #entPlot{height:160px}
+}
+@media (pointer:coarse){ .keys{display:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Энтропия в ящике</h1>
+      <p>Модель газа в изолированном сосуде. Уберите перегородку и наблюдайте, как молекулы занимают весь объём, а энтропия растёт до максимума.</p>
+    </div>
+    <div class="tools">
+      <button id="btnTheme" type="button">Тёмная тема</button>
+      <button id="btnFull" type="button">Во весь экран</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="col-left">
+      <div class="stage">
+        <canvas id="sim" aria-label="Сосуд с молекулами газа"></canvas>
+        <div class="toast" id="toast" role="status"></div>
+      </div>
+      <figure class="plot">
+        <figcaption>Энтропия во времени, % от максимума</figcaption>
+        <canvas id="entPlot"></canvas>
+      </figure>
+    </div>
+
+    <div class="col-right">
+      <section class="card panel">
+        <p class="formula">S = k <span>ln</span> W</p>
+        <p class="vals">ln W = <b id="lnw">0</b><br>S = <b id="sj">0</b> Дж/К</p>
+        <div class="big"><strong id="pct">0 %</strong><small>от наибольшей возможной энтропии</small></div>
+        <div class="bar"><i id="bar"></i></div>
+        <ul class="facts">
+          <li><span id="sideLbl">В левой половине</span><b id="side">100 %</b></li>
+        </ul>
+        <div class="actions">
+          <button id="btnPart" class="primary" type="button">Убрать перегородку</button>
+          <button id="btnRev" type="button">Обратить время</button>
+          <button id="btnPlay" type="button">Пауза</button>
+          <button id="btnReset" class="wide" type="button">Начать заново</button>
+        </div>
+      </section>
+
+      <section class="card settings">
+        <div class="group">
+          <h2>Опыт</h2>
+          <div class="seg" role="group" aria-label="Опыт">
+            <button type="button" data-mode="expand" aria-pressed="true">Расширение</button>
+            <button type="button" data-mode="mix" aria-pressed="false">Смешивание</button>
+          </div>
+          <label class="range">Число молекул <output id="nOut">200</output>
+            <input type="range" id="nIn" min="4" max="600" step="2" value="200"></label>
+          <label class="range">Температура <output id="tOut">×1,0</output>
+            <input type="range" id="tIn" min="0.3" max="2.5" step="0.1" value="1"></label>
+        </div>
+        <div class="group">
+          <h2>На сколько ячеек делим сосуд</h2>
+          <div class="seg" role="group" aria-label="Число ячеек" id="cellSeg">
+            <button type="button" data-c="0" aria-pressed="true">8</button>
+            <button type="button" data-c="1" aria-pressed="false">16</button>
+            <button type="button" data-c="2" aria-pressed="false">32</button>
+          </div>
+        </div>
+        <p class="hint">Зажмите палец или кнопку мыши внутри сосуда: «рука демона» соберёт молекулы, и энтропия упадёт. Но тогда система уже не изолирована.</p>
+        <p class="hint keys"><kbd>Пробел</kbd> пауза, <kbd>P</kbd> перегородка, <kbd>R</kbd> обратить время.</p>
+      </section>
+    </div>
+  </div>
+
+  <footer>Молекулы — упругие шарики в сосуде без трения. Энтропия считается по формуле Больцмана: W — число способов разложить молекулы по ячейкам так, чтобы в каждой оказалось столько же молекул, сколько сейчас.</footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+const W = 900, H = 520, DT = 1/120, STEPS = 2, V0 = 130, KB = 1.380649e-23;
+const CELL_OPTS = [[4,2],[4,4],[8,4]];
+const DEMON_R = 110;
+const lnF = new Float64Array(2001);
+for (let i = 2; i < lnF.length; i++) lnF[i] = lnF[i-1] + Math.log(i);
+
+const $ = id => document.getElementById(id);
+const sim = $('sim'), sctx = sim.getContext('2d');
+const ent = $('entPlot'), ectx = ent.getContext('2d');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const S = { mode:'expand', N:200, cells:0, temp:1, running:!reduceMotion, partition:true,
+  t:0, sinceRef:0, countdown:-1, refOrdered:true };
+let P = [], r = 6, history = [], events = [];
+const demon = { active:false, x:0, y:0 };
+let col = {}, sprites = {}, last = null, frameNo = 0, toastTimer = null;
+
+/* ---------- helpers ---------- */
+const fmt = (x, d=1) => x.toLocaleString('ru-RU', {minimumFractionDigits:d, maximumFractionDigits:d});
+const SUP = {'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+const sup = n => String(n).split('').map(c => SUP[c] || c).join('');
+function sci(x){
+  if (x === 0) return '0';
+  let e = Math.floor(Math.log10(x)), m = x / Math.pow(10, e);
+  if (m >= 9.995){ m /= 10; e++; }
+  return fmt(m, 2) + '·10' + sup(e);
+}
+function rayleigh(){
+  const sig = V0 * Math.sqrt(S.temp) / 1.2533;
+  return sig * Math.sqrt(-2 * Math.log(1 - Math.random()));
+}
+function rgba(hex, a){
+  const h = hex.replace('#','');
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+function isDark(){
+  const t = document.documentElement.dataset.theme;
+  return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/* ---------- colours & sprites ---------- */
+function readColors(){
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of ['ink','inkSoft','gasA','gasB','accent','wall','cellline','cellnum','line','box']){
+    col[k] = cs.getPropertyValue(k === 'inkSoft' ? '--ink-soft' : '--' + k).trim();
+  }
+  col.glow = parseFloat(cs.getPropertyValue('--glow')) || 0.1;
+  sprites = { 0: makeSprite(col.gasA), 1: makeSprite(col.gasB) };
+  $('btnTheme').textContent = isDark() ? 'Светлая тема' : 'Тёмная тема';
+}
+function makeSprite(color){
+  const size = 64, c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d'), R = size / 2, core = 1 / 1.9;
+  const grad = g.createRadialGradient(R, R, 0, R, R, R);
+  grad.addColorStop(0, color);
+  grad.addColorStop(core * 0.92, color);
+  grad.addColorStop(core, rgba(color, col.glow));
+  grad.addColorStop(1, rgba(color, 0));
+  g.fillStyle = grad; g.fillRect(0, 0, size, size);
+  g.fillStyle = 'rgba(255,255,255,.35)';
+  g.beginPath(); g.arc(R - R*core*0.35, R - R*core*0.35, R*core*0.28, 0, Math.PI*2); g.fill();
+  return c;
+}
+
+/* ---------- setup ---------- */
+function overlaps(x, y){
+  const d2 = 4 * r * r;
+  for (const p of P){ const dx = p.x - x, dy = p.y - y; if (dx*dx + dy*dy < d2) return true; }
+  return false;
+}
+function reset(){
+  S.N = +$('nIn').value;
+  r = Math.min(9, Math.max(2.5, Math.sqrt(0.075 * W * H / (S.N * Math.PI))));
+  P = [];
+  const half = W / 2;
+  for (let i = 0; i < S.N; i++){
+    const sp = S.mode === 'mix' ? (i < S.N / 2 ? 0 : 1) : 0;
+    let x, y, tries = 0;
+    do {
+      x = sp === 0 ? r + Math.random() * (half - 2*r) : half + r + Math.random() * (half - 2*r);
+      y = r + Math.random() * (H - 2*r);
+    } while (++tries < 40 && overlaps(x, y));
+    const v = rayleigh(), a = Math.random() * Math.PI * 2;
+    P.push({ x, y, vx: v * Math.cos(a), vy: v * Math.sin(a), sp, side: sp });
+  }
+  S.partition = true; S.t = 0; S.sinceRef = 0; S.countdown = -1; S.refOrdered = true;
+  history = []; events = [];
+  hideToast(); updateUI();
+  $('sideLbl').textContent = S.mode === 'mix' ? 'Молекул на своей стороне' : 'В левой половине';
+}
+
+/* ---------- physics ---------- */
+let heads = new Int32Array(0), nexts = new Int32Array(0);
+function collisions(){
+  const cs = 2 * r, gx = Math.ceil(W / cs), gy = Math.ceil(H / cs), n = P.length;
+  if (heads.length !== gx * gy) heads = new Int32Array(gx * gy);
+  if (nexts.length !== n) nexts = new Int32Array(n);
+  heads.fill(-1);
+  for (let i = 0; i < n; i++){
+    const p = P[i];
+    const cx = Math.min(gx - 1, Math.max(0, (p.x / cs) | 0)), cy = Math.min(gy - 1, Math.max(0, (p.y / cs) | 0));
+    const c = cy * gx + cx; nexts[i] = heads[c]; heads[c] = i; p.cx = cx; p.cy = cy;
+  }
+  const d2min = cs * cs;
+  for (let i = 0; i < n; i++){
+    const a = P[i];
+    for (let oy = -1; oy <= 1; oy++){
+      const yy = a.cy + oy; if (yy < 0 || yy >= gy) continue;
+      for (let ox = -1; ox <= 1; ox++){
+        const xx = a.cx + ox; if (xx < 0 || xx >= gx) continue;
+        for (let j = heads[yy * gx + xx]; j !== -1; j = nexts[j]){
+          if (j <= i) continue;
+          const b = P[j];
+          if (S.partition && a.side !== b.side) continue;
+          const dx = b.x - a.x, dy = b.y - a.y, d2 = dx*dx + dy*dy;
+          if (d2 >= d2min || d2 < 1e-9) continue;
+          const d = Math.sqrt(d2), nx = dx / d, ny = dy / d;
+          const rel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+          if (rel > 0){ a.vx -= rel * nx; a.vy -= rel * ny; b.vx += rel * nx; b.vy += rel * ny; }
+          const push = (cs - d) / 2;
+          a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
+        }
+      }
+    }
+  }
+}
+function step(){
+  const half = W / 2;
+  if (demon.active){
+    const R2 = DEMON_R * DEMON_R;
+    for (const p of P){
+      const dx = demon.x - p.x, dy = demon.y - p.y, d2 = dx*dx + dy*dy;
+      if (d2 < R2 && d2 > 1){
+        const d = Math.sqrt(d2), s = Math.hypot(p.vx, p.vy);
+        const nx = p.vx + 0.2 * s * dx / d, ny = p.vy + 0.2 * s * dy / d, m = Math.hypot(nx, ny) || 1;
+        p.vx = nx / m * s; p.vy = ny / m * s;
+      }
+    }
+  }
+  for (const p of P){
+    p.x += p.vx * DT; p.y += p.vy * DT;
+    let minX = r, maxX = W - r;
+    if (S.partition){ if (p.side === 0) maxX = half - r; else minX = half + r; }
+    if (p.x < minX){ p.x = 2*minX - p.x; p.vx = -p.vx; }
+    else if (p.x > maxX){ p.x = 2*maxX - p.x; p.vx = -p.vx; }
+    if (p.y < r){ p.y = 2*r - p.y; p.vy = -p.vy; }
+    else if (p.y > H - r){ p.y = 2*(H - r) - p.y; p.vy = -p.vy; }
+  }
+  collisions();
+  S.t += DT; S.sinceRef++;
+  if (S.countdown > 0 && --S.countdown === 0){
+    S.countdown = -1; S.running = false; S.sinceRef = 0;
+    reportReturn(); updateUI();
+    return true;
+  }
+  return false;
+}
+
+/* ---------- entropy ---------- */
+function uniformSum(n, M){
+  const q = Math.floor(n / M), rem = n % M;
+  return rem * lnF[q + 1] + (M - rem) * lnF[q];
+}
+function entropy(){
+  const [cx, cy] = CELL_OPTS[S.cells], M = cx * cy;
+  const cnt = new Int32Array(M * 2);
+  let leftA = 0, rightB = 0, nA = 0, nB = 0;
+  for (const p of P){
+    let i = (p.x / W * cx) | 0, j = (p.y / H * cy) | 0;
+    i = i < 0 ? 0 : i >= cx ? cx - 1 : i; j = j < 0 ? 0 : j >= cy ? cy - 1 : j;
+    cnt[p.sp * M + j * cx + i]++;
+    if (p.sp === 0){ nA++; if (p.x < W / 2) leftA++; } else { nB++; if (p.x >= W / 2) rightB++; }
+  }
+  let lnW = 0, lnWmax = 0;
+  for (const sp of [0, 1]){
+    const n = sp ? nB : nA; if (!n) continue;
+    let s = lnF[n];
+    for (let c = 0; c < M; c++) s -= lnF[cnt[sp * M + c]];
+    lnW += s; lnWmax += lnF[n] - uniformSum(n, M);
+  }
+  const home = S.mode === 'mix' ? (leftA + rightB) / S.N : leftA / S.N;
+  return { lnW, ratio: lnWmax > 0 ? Math.max(0, lnW / lnWmax) : 0, cnt, M, cx, cy, home };
+}
+
+/* ---------- actions ---------- */
+function togglePartition(){
+  if (S.partition){
+    S.partition = false; S.sinceRef = 0; S.countdown = -1;
+    S.refOrdered = (last ? last.home : 1) >= 0.97;
+    events.push({ t:S.t, label:'перегородка убрана' });
+    S.running = true; hideToast();
+  } else {
+    S.partition = true; S.countdown = -1; S.sinceRef = 0;
+    const half = W / 2;
+    for (const p of P){
+      p.side = p.x < half ? 0 : 1;
+      if (p.side === 0 && p.x > half - r) p.x = half - r;
+      if (p.side === 1 && p.x < half + r) p.x = half + r;
+    }
+    events.push({ t:S.t, label:'перегородка' });
+  }
+  updateUI();
+}
+function reverseTime(){
+  for (const p of P){ p.vx = -p.vx; p.vy = -p.vy; }
+  events.push({ t:S.t, label:'время обращено' });
+  if (!S.partition && S.sinceRef > 0){
+    S.countdown = S.sinceRef;
+    S.targetOrdered = S.refOrdered;
+    toast('Скорости всех молекул обращены. Посмотрим, вернутся ли они обратно.');
+  }
+  S.refOrdered = (last ? last.home : 0) >= 0.97;
+  S.sinceRef = 0; S.running = true; updateUI();
+}
+function reportReturn(){
+  const e = entropy();
+  if (e.home >= 0.97){
+    toast(S.mode === 'mix'
+      ? 'Газы снова разделились! Законы механики обратимы, но для этого пришлось точно обратить скорость каждой молекулы — в природе так не бывает.'
+      : 'Все молекулы вернулись в левую половину! Законы механики обратимы, но для этого пришлось точно обратить скорость каждой молекулы — в природе так не бывает.');
+  } else if (S.targetOrdered){
+    toast('Молекулы не вернулись: столкновения быстро перепутывают траектории, и малейшая неточность уводит систему в сторону. Чтобы «отмотать» время назад, нужна абсолютная точность.');
+  } else {
+    toast('Система вернулась в состояние на момент предыдущего обращения времени.');
+  }
+}
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 9000);
+}
+function hideToast(){ $('toast').classList.remove('show'); }
+function updateUI(){
+  $('btnPart').textContent = S.partition ? 'Убрать перегородку' : 'Вернуть перегородку';
+  $('btnPlay').textContent = S.running ? 'Пауза' : 'Продолжить';
+  document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === S.mode));
+  document.querySelectorAll('#cellSeg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.c === S.cells));
+}
+
+/* ---------- drawing ---------- */
+function fitCanvas(c, ctx, logicalW){
+  const dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)){
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+  }
+  if (logicalW){ const s = c.width / logicalW; ctx.setTransform(s, 0, 0, s, 0, 0); }
+  else ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w, h };
+}
+function drawSim(e){
+  fitCanvas(sim, sctx, W);
+  const g = sctx; g.clearRect(0, 0, W, H);
+  const cw = W / e.cx, ch = H / e.cy;
+  g.strokeStyle = col.cellline; g.lineWidth = 1.2; g.setLineDash([6, 6]);
+  g.beginPath();
+  for (let i = 1; i < e.cx; i++){ g.moveTo(i*cw, 0); g.lineTo(i*cw, H); }
+  for (let j = 1; j < e.cy; j++){ g.moveTo(0, j*ch); g.lineTo(W, j*ch); }
+  g.stroke(); g.setLineDash([]);
+  const fs = Math.max(20, Math.min(64, Math.min(cw, ch) * 0.3));
+  g.font = `700 ${fs}px "PT Sans", Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (let j = 0; j < e.cy; j++) for (let i = 0; i < e.cx; i++){
+    const c = j * e.cx + i, x = (i + 0.5) * cw, y = (j + 0.5) * ch;
+    if (S.mode === 'mix'){
+      g.globalAlpha = 0.38;
+      g.fillStyle = col.gasA; g.fillText(e.cnt[c], x - fs * 0.75, y);
+      g.fillStyle = col.gasB; g.fillText(e.cnt[e.M + c], x + fs * 0.75, y);
+      g.globalAlpha = 1;
+    } else { g.fillStyle = col.cellnum; g.fillText(e.cnt[c], x, y); }
+  }
+  if (S.partition){
+    g.strokeStyle = col.wall; g.lineWidth = 5;
+    g.beginPath(); g.moveTo(W/2, 0); g.lineTo(W/2, H); g.stroke();
+  }
+  const R = r * 1.9;
+  for (const p of P) g.drawImage(sprites[p.sp], p.x - R, p.y - R, 2*R, 2*R);
+  if (demon.active){
+    g.beginPath(); g.arc(demon.x, demon.y, DEMON_R, 0, Math.PI*2);
+    g.fillStyle = rgba(col.accent, 0.12); g.fill();
+    g.strokeStyle = col.accent; g.lineWidth = 2; g.setLineDash([4, 6]); g.stroke(); g.setLineDash([]);
+  }
+}
+function drawEnt(){
+  const { w, h } = fitCanvas(ent, ectx);
+  const g = ectx; g.clearRect(0, 0, w, h);
+  const L = 44, Rt = 20, T = 14, B = 22, pw = w - L - Rt, ph = h - T - B;
+  const span = w < 500 ? 20 : 30;
+  const t1 = Math.max(span, S.t), t0 = t1 - span;
+  const X = t => L + (t - t0) / span * pw, Y = s => T + (1 - s) * ph;
+  g.font = '12px "PT Sans", Arial, sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'right';
+  for (const s of [0, 0.25, 0.5, 0.75, 1]){
+    g.strokeStyle = col.line; g.lineWidth = 1; g.setLineDash(s === 1 ? [5, 4] : []);
+    g.beginPath(); g.moveTo(L, Y(s)); g.lineTo(L + pw, Y(s)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = col.inkSoft; g.fillText(Math.round(s * 100) + ' %', L - 6, Y(s));
+  }
+  g.textAlign = 'center'; g.textBaseline = 'top';
+  for (let s = Math.ceil(t0 / 5) * 5; s <= t1; s += 5) g.fillText(s + ' с', X(s), T + ph + 6);
+  g.textAlign = 'left'; g.textBaseline = 'top';
+  let lastX = -1e9, row = 0;
+  for (const ev of events){
+    if (ev.t < t0) continue;
+    const ex = X(ev.t);
+    row = ex - lastX < 120 ? row + 1 : 0; lastX = ex;
+    g.strokeStyle = col.accent; g.globalAlpha = 0.7; g.setLineDash([3, 4]);
+    g.beginPath(); g.moveTo(X(ev.t), T); g.lineTo(X(ev.t), T + ph); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+    g.fillStyle = col.accent; g.fillText(ev.label, Math.min(ex + 4, L + pw - 110), T + row * 14);
+  }
+  const pts = history.filter(p => p.t >= t0);
+  if (pts.length > 1){
+    g.beginPath(); g.moveTo(X(pts[0].t), Y(pts[0].s));
+    for (const p of pts) g.lineTo(X(p.t), Y(p.s));
+    g.strokeStyle = col.ink; g.lineWidth = 2.2; g.stroke();
+    g.lineTo(X(pts[pts.length-1].t), Y(0)); g.lineTo(X(pts[0].t), Y(0)); g.closePath();
+    g.fillStyle = rgba(col.accent, 0.12); g.fill();
+  }
+}
+function readout(e){
+  $('pct').textContent = Math.round(e.ratio * 100) + ' %';
+  $('bar').style.width = (e.ratio * 100).toFixed(1) + '%';
+  $('lnw').textContent = fmt(e.lnW, 1);
+  $('sj').textContent = sci(KB * e.lnW);
+  $('side').textContent = Math.round(e.home * 100) + ' %';
+}
+
+/* ---------- loop ---------- */
+function frame(){
+  if (S.running){ for (let k = 0; k < STEPS; k++) if (step()) break; }
+  last = entropy();
+  if (S.running || !history.length){
+    history.push({ t:S.t, s:last.ratio });
+    while (history.length && history[0].t < S.t - 32) history.shift();
+  }
+  drawSim(last); drawEnt();
+  if (frameNo++ % 4 === 0 || !S.running) readout(last);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- wiring ---------- */
+$('btnPart').onclick = togglePartition;
+$('btnRev').onclick = reverseTime;
+$('btnPlay').onclick = () => { S.running = !S.running; updateUI(); };
+$('btnReset').onclick = reset;
+document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { S.mode = b.dataset.mode; reset(); });
+document.querySelectorAll('#cellSeg button').forEach(b => b.onclick = () => {
+  S.cells = +b.dataset.c; history = []; events = events.filter(ev => ev.t >= S.t); updateUI();
+});
+$('nIn').oninput = () => { $('nOut').textContent = $('nIn').value; };
+$('nIn').onchange = reset;
+$('tIn').oninput = () => {
+  const nt = +$('tIn').value, f = Math.sqrt(nt / S.temp);
+  for (const p of P){ p.vx *= f; p.vy *= f; }
+  S.temp = nt; S.countdown = -1; $('tOut').textContent = '×' + fmt(nt, 1);
+};
+$('btnTheme').onclick = () => {
+  document.documentElement.dataset.theme = isDark() ? 'light' : 'dark';
+  readColors();
+};
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
+if (!document.fullscreenEnabled) $('btnFull').hidden = true;
+$('btnFull').onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+};
+function setDemon(ev){
+  const rc = sim.getBoundingClientRect();
+  demon.x = (ev.clientX - rc.left) / rc.width * W;
+  demon.y = (ev.clientY - rc.top) / rc.height * H;
+}
+sim.addEventListener('pointerdown', ev => {
+  demon.active = true; setDemon(ev); sim.setPointerCapture(ev.pointerId);
+  S.countdown = -1; events.push({ t:S.t, label:'рука демона' });
+  if (!S.running){ S.running = true; updateUI(); }
+});
+sim.addEventListener('pointermove', ev => { if (demon.active) setDemon(ev); });
+const release = () => { demon.active = false; };
+sim.addEventListener('pointerup', release);
+sim.addEventListener('pointercancel', release);
+document.addEventListener('keydown', ev => {
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  const tag = ev.target.tagName, k = ev.key.toLowerCase();
+  if (ev.key === ' '){
+    if (tag === 'BUTTON' || tag === 'INPUT') return;
+    ev.preventDefault(); S.running = !S.running; updateUI();
+  } else if (k === 'p' || k === 'з') togglePartition();
+  else if (k === 'r' || k === 'к') reverseTime();
+});
+
+readColors();
+reset();
+if (reduceMotion) toast('Анимация на паузе. Нажмите «Продолжить», чтобы запустить модель.');
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
